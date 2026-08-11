@@ -86,6 +86,32 @@
   .day-hint{font-size:9px;fill:#5b6472;text-anchor:middle;opacity:0;transition:opacity .15s ease;}
   .day-col:hover .day-hint{opacity:1;}
 
+  /* band legend hover descriptions */
+  .band-key{position:relative;cursor:help;border-bottom:1px dotted var(--text3);padding-bottom:1px;}
+  .band-key::after{
+    content:attr(data-tooltip);
+    position:absolute;bottom:135%;left:50%;transform:translateX(-50%);
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    font-family:'Inter',sans-serif;font-size:11.5px;line-height:1.45;
+    padding:9px 11px;border-radius:8px;width:210px;white-space:normal;
+    opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:60;
+    box-shadow:0 6px 18px rgba(0,0,0,0.45);
+  }
+  .band-key::before{
+    content:'';position:absolute;bottom:122%;left:50%;transform:translateX(-50%);
+    border:5px solid transparent;border-top-color:var(--border);
+    opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:60;
+  }
+  .band-key:hover::after,.band-key:hover::before{opacity:1;}
+
+  /* chart data-point tooltip */
+  .chart-tooltip{
+    position:fixed;display:none;z-index:200;pointer-events:none;
+    background:var(--panel2);border:1px solid var(--border);border-radius:8px;
+    padding:9px 11px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.6;
+    color:var(--text);box-shadow:0 6px 18px rgba(0,0,0,0.45);white-space:nowrap;
+  }
+
   /* modal */
   .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(8,10,14,0.72);z-index:100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 20px;}
   .modal-backdrop.open{display:flex;}
@@ -144,11 +170,11 @@
         <span><span class="dot" style="background:#5b8ff2"></span>Air temp °C</span>
         <span><span class="dot" style="background:#5b6472"></span>Relative humidity %</span>
         <span style="margin-left:auto;">WBGT line, coloured by risk band:</span>
-        <span><span class="dot" style="background:#4fd1ae"></span>Low</span>
-        <span><span class="dot" style="background:#f2c14e"></span>Moderate</span>
-        <span><span class="dot" style="background:#f2884b"></span>High</span>
-        <span><span class="dot" style="background:#e8563f"></span>Very High</span>
-        <span><span class="dot" style="background:#c0392b"></span>Extreme</span>
+        <span class="band-key" data-tooltip="Low heat stress (below 18°C WBGT). Normal outdoor activity, exercise and exertion are safe for most people."><span class="dot" style="background:#4fd1ae"></span>Low</span>
+        <span class="band-key" data-tooltip="Moderate heat stress (18–23°C WBGT). Fine for most activity — hydrate regularly, especially if unacclimatised to heat."><span class="dot" style="background:#f2c14e"></span>Moderate</span>
+        <span class="band-key" data-tooltip="High heat stress (23–28°C WBGT). Increase rest breaks, seek shade, and hydrate every 15–20 minutes."><span class="dot" style="background:#f2884b"></span>High</span>
+        <span class="band-key" data-tooltip="Very high heat stress (28–30°C WBGT). Reschedule intense exercise; shorten work or exercise bouts with frequent shaded breaks."><span class="dot" style="background:#e8563f"></span>Very High</span>
+        <span class="band-key" data-tooltip="Extreme heat stress (above 30°C WBGT). Postpone strenuous outdoor activity; limit exposure to short, light tasks."><span class="dot" style="background:#c0392b"></span>Extreme</span>
       </div>
       <svg id="chart" width="960" height="280" viewBox="0 0 960 280" style="width:100%;height:auto;"></svg>
       <div class="updated" id="chartPeak" style="margin-top:10px;"></div>
@@ -158,11 +184,11 @@
     <div class="chart-panel">
       <div class="legend">
         <span style="color:#5b6472">Bars show each day's peak estimated WBGT, coloured by risk band:</span>
-        <span><span class="dot" style="background:#4fd1ae"></span>Low</span>
-        <span><span class="dot" style="background:#f2c14e"></span>Moderate</span>
-        <span><span class="dot" style="background:#f2884b"></span>High</span>
-        <span><span class="dot" style="background:#e8563f"></span>Very High</span>
-        <span><span class="dot" style="background:#c0392b"></span>Extreme</span>
+        <span class="band-key" data-tooltip="Low heat stress (below 18°C WBGT). Normal outdoor activity, exercise and exertion are safe for most people."><span class="dot" style="background:#4fd1ae"></span>Low</span>
+        <span class="band-key" data-tooltip="Moderate heat stress (18–23°C WBGT). Fine for most activity — hydrate regularly, especially if unacclimatised to heat."><span class="dot" style="background:#f2c14e"></span>Moderate</span>
+        <span class="band-key" data-tooltip="High heat stress (23–28°C WBGT). Increase rest breaks, seek shade, and hydrate every 15–20 minutes."><span class="dot" style="background:#f2884b"></span>High</span>
+        <span class="band-key" data-tooltip="Very high heat stress (28–30°C WBGT). Reschedule intense exercise; shorten work or exercise bouts with frequent shaded breaks."><span class="dot" style="background:#e8563f"></span>Very High</span>
+        <span class="band-key" data-tooltip="Extreme heat stress (above 30°C WBGT). Postpone strenuous outdoor activity; limit exposure to short, light tasks."><span class="dot" style="background:#c0392b"></span>Extreme</span>
       </div>
       <svg id="dailyChart" width="960" height="240" viewBox="0 0 960 240" style="width:100%;height:auto;"></svg>
     </div>
@@ -192,16 +218,18 @@
       <span><span class="dot" style="background:#5b8ff2"></span>Air temp °C</span>
       <span><span class="dot" style="background:#5b6472"></span>Relative humidity %</span>
       <span style="color:#5b6472">WBGT coloured by risk band:</span>
-      <span><span class="dot" style="background:#4fd1ae"></span>Low</span>
-      <span><span class="dot" style="background:#f2c14e"></span>Moderate</span>
-      <span><span class="dot" style="background:#f2884b"></span>High</span>
-      <span><span class="dot" style="background:#e8563f"></span>Very High</span>
-      <span><span class="dot" style="background:#c0392b"></span>Extreme</span>
+      <span class="band-key" data-tooltip="Low heat stress (below 18°C WBGT). Normal outdoor activity, exercise and exertion are safe for most people."><span class="dot" style="background:#4fd1ae"></span>Low</span>
+      <span class="band-key" data-tooltip="Moderate heat stress (18–23°C WBGT). Fine for most activity — hydrate regularly, especially if unacclimatised to heat."><span class="dot" style="background:#f2c14e"></span>Moderate</span>
+      <span class="band-key" data-tooltip="High heat stress (23–28°C WBGT). Increase rest breaks, seek shade, and hydrate every 15–20 minutes."><span class="dot" style="background:#f2884b"></span>High</span>
+      <span class="band-key" data-tooltip="Very high heat stress (28–30°C WBGT). Reschedule intense exercise; shorten work or exercise bouts with frequent shaded breaks."><span class="dot" style="background:#e8563f"></span>Very High</span>
+      <span class="band-key" data-tooltip="Extreme heat stress (above 30°C WBGT). Postpone strenuous outdoor activity; limit exposure to short, light tasks."><span class="dot" style="background:#c0392b"></span>Extreme</span>
     </div>
     <svg id="modalChart" width="960" height="280" viewBox="0 0 960 280" style="width:100%;height:auto;"></svg>
     <div class="updated" id="modalPeak" style="margin-top:10px;"></div>
   </div>
 </div>
+
+<div class="chart-tooltip" id="chartTooltip"></div>
 
 <script>
 const RISK_LEVELS = [
@@ -252,6 +280,40 @@ function closeDayModal(){
 
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Escape') closeDayModal();
+});
+
+// --- WBGT data-point hover tooltip (delegated, since chart SVGs are rebuilt on every render) ---
+function positionChartTip(evt){
+  const tip = document.getElementById('chartTooltip');
+  const pad = 16;
+  const rect = tip.getBoundingClientRect();
+  let x = evt.clientX + pad;
+  let y = evt.clientY + pad;
+  if(x + rect.width > window.innerWidth - 8) x = evt.clientX - rect.width - pad;
+  if(y + rect.height > window.innerHeight - 8) y = evt.clientY - rect.height - pad;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+document.addEventListener('mouseover', (e)=>{
+  const t = e.target.closest && e.target.closest('.wbgt-hit');
+  if(!t) return;
+  const tip = document.getElementById('chartTooltip');
+  tip.innerHTML = `
+    <div style="color:#8892a0;margin-bottom:3px;">${t.dataset.time}</div>
+    <div style="color:${t.dataset.color};font-size:13px;">${t.dataset.wbgt}°C WBGT — ${t.dataset.risk}</div>
+    <div style="color:#8892a0;margin-top:2px;">Air ${t.dataset.temp}°C · ${t.dataset.rh}% RH</div>
+  `;
+  tip.style.display = 'block';
+  positionChartTip(e);
+});
+document.addEventListener('mousemove', (e)=>{
+  const tip = document.getElementById('chartTooltip');
+  if(tip.style.display === 'block') positionChartTip(e);
+});
+document.addEventListener('mouseout', (e)=>{
+  const t = e.target.closest && e.target.closest('.wbgt-hit');
+  if(t) document.getElementById('chartTooltip').style.display = 'none';
 });
 
 function riskFor(wbgt){
@@ -442,6 +504,7 @@ function drawChart(hours, nowIndex, svgId){
   // WBGT line: draw one segment per hour-pair, coloured by that segment's risk band
   let wbgtSegments = '';
   let wbgtDots = '';
+  let wbgtHits = '';
   for(let i=0;i<hours.length-1;i++){
     const v1 = wbgts[i], v2 = wbgts[i+1];
     const seg = riskFor((v1+v2)/2);
@@ -450,6 +513,9 @@ function drawChart(hours, nowIndex, svgId){
   wbgts.forEach((v,i)=>{
     const r = riskFor(v);
     wbgtDots += `<circle cx="${x(i)}" cy="${yTemp(v)}" r="2.5" fill="${r.color}"/>`;
+    wbgtHits += `<circle class="wbgt-hit" cx="${x(i)}" cy="${yTemp(v)}" r="9" fill="transparent" style="pointer-events:all;cursor:pointer"
+                   data-time="${fmtHour(hours[i].time)}" data-wbgt="${v.toFixed(1)}" data-risk="${r.label}" data-color="${r.color}"
+                   data-temp="${hours[i].temp.toFixed(1)}" data-rh="${Math.round(hours[i].rh)}"/>`;
   });
 
   let nowMarker = '';
@@ -469,6 +535,7 @@ function drawChart(hours, nowIndex, svgId){
     ${wbgtDots}
     ${yLabels}
     ${nowMarker}
+    ${wbgtHits}
   `;
 }
 
