@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WBGT Instrument</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#10141a;
+    --panel:#171d26;
+    --panel2:#1c232e;
+    --border:#2a323d;
+    --grid:#232a34;
+    --text:#eef1f5;
+    --text2:#8892a0;
+    --text3:#5b6472;
+    --low:#4fd1ae;
+    --moderate:#f2c14e;
+    --high:#f2884b;
+    --veryhigh:#e8563f;
+    --extreme:#c0392b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  body{padding:28px 20px 40px;min-height:100vh;}
+  .wrap{max-width:920px;margin:0 auto;}
+
+  /* header */
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:22px;border-bottom:1px solid var(--border);padding-bottom:16px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin:0 0 4px;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:26px;margin:0;letter-spacing:-.01em;}
+  .loc-form{display:flex;gap:8px;align-items:center;}
+  .loc-form input{background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:8px 10px;border-radius:6px;width:170px;}
+  .loc-form input:focus{outline:none;border-color:var(--text2);}
+  .loc-form button{background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;padding:8px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+  .loc-form button:hover{border-color:var(--text2);}
+  .loc-form button:disabled{opacity:0.5;cursor:default;}
+  .updated{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);margin-top:6px;}
+
+  .status{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text2);padding:40px 0;text-align:center;}
+  .status.err{color:var(--veryhigh);}
+
+  #content{display:none;}
+
+  /* hero */
+  .hero{display:flex;gap:28px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;flex-wrap:wrap;}
+  .gauge-col{display:flex;flex-direction:column;align-items:center;min-width:220px;}
+  .gauge-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-top:6px;}
+  .gauge-risk{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin-top:2px;}
+  .stat-grid{flex:1;min-width:220px;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:center;}
+  .stat{border-left:2px solid var(--border);padding-left:12px;}
+  .stat .num{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--text);}
+  .stat .lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
+
+  /* timeline */
+  .section-title{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin:30px 0 12px;}
+  .timeline{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;}
+  .hcard{flex:0 0 auto;width:112px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 10px;text-align:center;}
+  .hcard .t{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);}
+  .hcard .wbgt{font-family:'Fraunces',serif;font-weight:600;font-size:22px;margin:6px 0 2px;}
+  .hcard .chip{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-bottom:8px;}
+  .hcard .sub{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text2);line-height:1.5;}
+
+  /* chart */
+  .chart-panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:12px;}
+  .legend{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);margin-bottom:10px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  /* advice */
+  .advice{margin-top:12px;background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--high);border-radius:10px;padding:18px 20px;}
+  .advice h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 8px;}
+  .advice p{font-size:13.5px;line-height:1.6;color:var(--text);margin:0 0 8px;}
+  .advice p:last-child{margin-bottom:0;}
+  .advice .win{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);margin-bottom:10px;}
+
+  .foot{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text3);line-height:1.6;margin-top:24px;border-top:1px solid var(--border);padding-top:14px;}
+
+  /* day-bar click affordance */
+  .day-col{cursor:pointer;}
+  .day-col rect{transition:opacity .15s ease;}
+  .day-col:hover rect{opacity:1;}
+  .day-col:hover text{opacity:1;}
+  .day-hint{font-size:9px;fill:#5b6472;text-anchor:middle;opacity:0;transition:opacity .15s ease;}
+  .day-col:hover .day-hint{opacity:1;}
+
+  /* modal */
+  .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(8,10,14,0.72);z-index:100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 20px;}
+  .modal-backdrop.open{display:flex;}
+  .modal-panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px 24px 20px;max-width:960px;width:100%;position:relative;}
+  .modal-close{position:absolute;top:14px;right:16px;background:var(--panel2);border:1px solid var(--border);color:var(--text2);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;}
+  .modal-close:hover{border-color:var(--text2);color:var(--text);}
+  .modal-title{font-family:'Fraunces',serif;font-weight:600;font-size:19px;margin:0 0 2px;padding-right:36px;}
+  .modal-sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);margin-bottom:16px;}
+
+  @media (max-width:520px){
+    .hero{flex-direction:column;}
+    h1{font-size:21px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">Heat Stress Instrument</p>
+      <h1 id="locName">Milton Keynes, GB</h1>
+      <p class="updated" id="updatedAt"></p>
+    </div>
+    <form class="loc-form" id="locForm">
+      <button type="button" id="geoBtn" title="Use current location">📍 Current</button>
+      <input type="text" id="locInput" placeholder="Or type a location…" autocomplete="off">
+      <button type="submit">Update</button>
+    </form>
+  </div>
+
+  <div class="status" id="status">Reading live conditions…</div>
+
+  <div id="content">
+
+    <div class="hero">
+      <div class="gauge-col">
+        <svg id="gauge" width="220" height="150" viewBox="0 0 220 150"></svg>
+        <div class="gauge-risk" id="gaugeRisk">—</div>
+        <div class="gauge-label">Estimated WBGT (sun)</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="num" id="statTemp">—</div><div class="lbl">Air temp °C</div></div>
+        <div class="stat"><div class="num" id="statRH">—</div><div class="lbl">Relative humidity</div></div>
+        <div class="stat"><div class="num" id="statUV">—</div><div class="lbl">UV index</div></div>
+        <div class="stat"><div class="num" id="statCloud">—</div><div class="lbl">Cloud cover</div></div>
+      </div>
+    </div>
+
+    <p class="section-title">Next 4 hours</p>
+    <div class="timeline" id="timeline"></div>
+
+    <p class="section-title">24-hour outlook</p>
+    <div class="chart-panel">
+      <div class="legend">
+        <span><span class="dot" style="background:#5b8ff2"></span>Air temp °C</span>
+        <span><span class="dot" style="background:#5b6472"></span>Relative humidity %</span>
+        <span style="margin-left:auto;">WBGT line, coloured by risk band:</span>
+        <span><span class="dot" style="background:#4fd1ae"></span>Low</span>
+        <span><span class="dot" style="background:#f2c14e"></span>Moderate</span>
+        <span><span class="dot" style="background:#f2884b"></span>High</span>
+        <span><span class="dot" style="background:#e8563f"></span>Very High</span>
+        <span><span class="dot" style="background:#c0392b"></span>Extreme</span>
+      </div>
+      <svg id="chart" width="960" height="280" viewBox="0 0 960 280" style="width:100%;height:auto;"></svg>
+      <div class="updated" id="chartPeak" style="margin-top:10px;"></div>
+    </div>
+
+    <p class="section-title">5-day outlook</p>
+    <div class="chart-panel">
+      <div class="legend">
+        <span style="color:#5b6472">Bars show each day's peak estimated WBGT, coloured by risk band:</span>
+        <span><span class="dot" style="background:#4fd1ae"></span>Low</span>
+        <span><span class="dot" style="background:#f2c14e"></span>Moderate</span>
+        <span><span class="dot" style="background:#f2884b"></span>High</span>
+        <span><span class="dot" style="background:#e8563f"></span>Very High</span>
+        <span><span class="dot" style="background:#c0392b"></span>Extreme</span>
+      </div>
+      <svg id="dailyChart" width="960" height="240" viewBox="0 0 960 240" style="width:100%;height:auto;"></svg>
+    </div>
+
+    <div class="advice" id="advice">
+      <div class="win" id="adviceWindow"></div>
+      <h2 id="adviceHeadline">—</h2>
+      <p id="adviceBody">—</p>
+    </div>
+
+    <div class="foot">
+      WBGT is estimated from air temperature, relative humidity, UV index and cloud cover using the shade approximation
+      WBGT&nbsp;=&nbsp;0.567·T&nbsp;+&nbsp;0.393·e&nbsp;+&nbsp;3.94 (e = vapour pressure), with a solar loading term added for
+      direct sun exposure. This is not a black-globe thermometer reading — treat it as a planning estimate, not an
+      official measurement. Data: Open-Meteo.
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-backdrop" id="dayModal" onclick="if(event.target===this) closeDayModal()">
+  <div class="modal-panel">
+    <button class="modal-close" onclick="closeDayModal()" aria-label="Close">✕</button>
+    <p class="modal-title" id="modalTitle">—</p>
+    <p class="modal-sub" id="modalSub"></p>
+    <div class="legend">
+      <span><span class="dot" style="background:#5b8ff2"></span>Air temp °C</span>
+      <span><span class="dot" style="background:#5b6472"></span>Relative humidity %</span>
+      <span style="color:#5b6472">WBGT coloured by risk band:</span>
+      <span><span class="dot" style="background:#4fd1ae"></span>Low</span>
+      <span><span class="dot" style="background:#f2c14e"></span>Moderate</span>
+      <span><span class="dot" style="background:#f2884b"></span>High</span>
+      <span><span class="dot" style="background:#e8563f"></span>Very High</span>
+      <span><span class="dot" style="background:#c0392b"></span>Extreme</span>
+    </div>
+    <svg id="modalChart" width="960" height="280" viewBox="0 0 960 280" style="width:100%;height:auto;"></svg>
+    <div class="updated" id="modalPeak" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<script>
+const RISK_LEVELS = [
+  { max: 18,  label: 'Low',       color: '#4fd1ae' },
+  { max: 23,  label: 'Moderate',  color: '#f2c14e' },
+  { max: 28,  label: 'High',      color: '#f2884b' },
+  { max: 30,  label: 'Very High', color: '#e8563f' },
+  { max: 999, label: 'Extreme',   color: '#c0392b' },
+];
+
+const ADVICE_COPY = {
+  'Low':       "Conditions support normal outdoor activity, including sustained or high-intensity efforts. Standard hydration is sufficient.",
+  'Moderate':  "Fine for most training and activity. Hydrate regularly and keep an eye on anyone unacclimatised to heat or working hard for long periods.",
+  'High':      "Increase rest breaks, seek shade when possible, and hydrate every 15–20 minutes. Ease off the hardest efforts, especially for unacclimatised individuals.",
+  'Very High': "Reschedule intense exercise or heavy exertion if possible. If you must be active, shorten work/exercise bouts and take frequent shaded breaks with fluids.",
+  'Extreme':   "Postpone strenuous outdoor activity. Limit exposure to short, light tasks with generous shade and hydration breaks.",
+};
+
+let LAT = 52.0406, LON = -0.7594, LOCLABEL = 'Milton Keynes, GB'; // fallback until geolocation resolves
+let DAY_MAP = new Map();   // dateKey -> hourly readings, cached from the last successful load
+let TODAY_KEY = null;
+
+function openDayModal(dateKey){
+  const hrs = DAY_MAP.get(dateKey);
+  if(!hrs || !hrs.length) return;
+
+  const d = new Date(dateKey + 'T12:00:00');
+  document.getElementById('modalTitle').textContent =
+    d.toLocaleDateString([], {weekday:'long', day:'numeric', month:'long'});
+  document.getElementById('modalSub').textContent = `Hourly WBGT forecast · ${LOCLABEL}`;
+
+  drawChart(hrs, dateKey === TODAY_KEY ? new Date().getHours() : -1, 'modalChart');
+
+  const peak = hrs.reduce((a,b)=> b.wbgtSun > a.wbgtSun ? b : a);
+  const peakRisk = riskFor(peak.wbgtSun);
+  document.getElementById('modalPeak').innerHTML =
+    `Peak: <span style="color:${peakRisk.color}">${peakRisk.label}</span> · ${peak.wbgtSun.toFixed(1)}°C around ${fmtHour(peak.time)}`;
+
+  const modal = document.getElementById('dayModal');
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDayModal(){
+  document.getElementById('dayModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeDayModal();
+});
+
+function riskFor(wbgt){
+  return RISK_LEVELS.find(r => wbgt <= r.max);
+}
+
+function vaporPressure(T, RH){
+  const es = 6.112 * Math.exp((17.62*T)/(243.12+T));
+  return (RH/100)*es;
+}
+function wbgtShade(T, RH){
+  return 0.567*T + 0.393*vaporPressure(T,RH) + 3.94;
+}
+function wbgtSun(T, RH, uv, cloud){
+  const shade = wbgtShade(T,RH);
+  const clearFactor = 1 - (cloud/100);
+  const solarAdd = Math.min(uv*0.45, 3.2) * clearFactor;
+  return shade + solarAdd;
+}
+
+function fmtHour(iso){
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+}
+
+async function geocode(name){
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!data.results || !data.results.length) throw new Error('Location not found');
+  const r = data.results[0];
+  return { lat: r.latitude, lon: r.longitude, label: [r.name, r.admin1, r.country_code].filter(Boolean).join(', ') };
+}
+
+async function fetchWeather(lat, lon){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,uv_index,cloud_cover&timezone=auto&forecast_days=6`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Weather service unavailable');
+  return res.json();
+}
+
+async function reverseGeocode(lat, lon){
+  try{
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const label = [data.city || data.locality, data.principalSubdivision, data.countryCode].filter(Boolean).join(', ');
+    return label || 'Current location';
+  }catch(e){
+    return 'Current location';
+  }
+}
+
+function getCurrentPosition(){
+  return new Promise((resolve, reject)=>{
+    if(!navigator.geolocation){ reject(new Error('Geolocation not supported')); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      err => reject(err),
+      { timeout: 8000 }
+    );
+  });
+}
+
+async function useCurrentLocation(silent){
+  const status = document.getElementById('status');
+  const content = document.getElementById('content');
+  if(!silent){
+    status.style.display = 'block';
+    status.className = 'status';
+    status.textContent = 'Finding your location…';
+    content.style.display = 'none';
+  }
+  try{
+    const pos = await getCurrentPosition();
+    LAT = pos.lat; LON = pos.lon;
+    LOCLABEL = await reverseGeocode(pos.lat, pos.lon);
+    loadAndRender();
+  }catch(err){
+    if(silent){
+      // silent initial attempt failed — fall back to default without alarming the user
+      loadAndRender();
+    }else{
+      status.className = 'status err';
+      status.textContent = 'Could not access your location — check permissions and try again, or search for a location.';
+    }
+  }
+}
+
+function drawGauge(wbgt){
+  const svg = document.getElementById('gauge');
+  const cx = 110, cy = 130, r = 90;
+  const min = 10, max = 35;
+  const clamped = Math.max(min, Math.min(max, wbgt));
+  const startAngle = 180, endAngle = 0; // sweep left to right along top half
+  const frac = (clamped - min) / (max - min);
+  const angle = startAngle - frac * (startAngle - endAngle);
+  const rad = (deg) => (deg * Math.PI) / 180;
+  const point = (deg, radius) => [cx + radius*Math.cos(rad(deg)), cy - radius*Math.sin(rad(deg))];
+
+  let segments = '';
+  const bands = [
+    {from:10, to:18, color:'#4fd1ae'},
+    {from:18, to:23, color:'#f2c14e'},
+    {from:23, to:28, color:'#f2884b'},
+    {from:28, to:30, color:'#e8563f'},
+    {from:30, to:35, color:'#c0392b'},
+  ];
+  bands.forEach(b=>{
+    const a1 = 180 - ((b.from-min)/(max-min))*180;
+    const a2 = 180 - ((b.to-min)/(max-min))*180;
+    const [x1,y1] = point(a1, r);
+    const [x2,y2] = point(a2, r);
+    segments += `<path d="M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}" stroke="${b.color}" stroke-width="14" fill="none" stroke-linecap="butt" opacity="0.9"/>`;
+  });
+
+  const [nx, ny] = point(angle, r-22);
+  const needle = `<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#eef1f5" stroke-width="3" stroke-linecap="round"/>
+                   <circle cx="${cx}" cy="${cy}" r="5" fill="#eef1f5"/>`;
+
+  const valueLabel = `<text x="${cx}" y="${cy-34}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="26" fill="#eef1f5">${wbgt.toFixed(1)}°</text>`;
+
+  svg.innerHTML = segments + needle + valueLabel;
+}
+
+function drawChart(hours, nowIndex, svgId){
+  const svg = document.getElementById(svgId || 'chart');
+  const W = 960, H = 280, padL = 42, padR = 42, padT = 16, padB = 30;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const temps = hours.map(h=>h.temp);
+  const wbgts = hours.map(h=>h.wbgtSun);
+  const rhs = hours.map(h=>h.rh);
+
+  const yMin = Math.floor(Math.min(...temps, ...wbgts) - 2);
+  const yMax = Math.ceil(Math.max(...temps, ...wbgts) + 2);
+
+  const x = (i) => padL + (i/(hours.length-1)) * innerW;
+  const yTemp = (v) => padT + innerH - ((v-yMin)/(yMax-yMin))*innerH;
+  const yRh = (v) => padT + innerH - (v/100)*innerH;
+  const clampY = (v) => Math.max(padT, Math.min(padT+innerH, v));
+
+  const path = (arr, yfn) => arr.map((v,i)=> `${i===0?'M':'L'} ${x(i)} ${yfn(v)}`).join(' ');
+
+  // --- risk-band background shading, clipped to the plotted temp/WBGT range ---
+  const bandBounds = [
+    { from: -Infinity, to: 18,  color: '#4fd1ae' },
+    { from: 18,         to: 23, color: '#f2c14e' },
+    { from: 23,         to: 28, color: '#f2884b' },
+    { from: 28,         to: 30, color: '#e8563f' },
+    { from: 30,         to: Infinity, color: '#c0392b' },
+  ];
+  let bandRects = '';
+  bandBounds.forEach(b=>{
+    const top = clampY(yTemp(Math.min(b.to, yMax)));
+    const bottom = clampY(yTemp(Math.max(b.from, yMin)));
+    if(bottom - top > 0.5){
+      bandRects += `<rect x="${padL}" y="${top}" width="${innerW}" height="${bottom-top}" fill="${b.color}" opacity="0.07"/>`;
+    }
+  });
+
+  let gridLines = '';
+  for(let i=0;i<=4;i++){
+    const yy = padT + (innerH/4)*i;
+    gridLines += `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#232a34" stroke-width="1"/>`;
+  }
+
+  let xLabels = '';
+  const step = Math.max(1, Math.ceil(hours.length/8));
+  hours.forEach((h,i)=>{
+    if(i % step === 0 || i===hours.length-1){
+      xLabels += `<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#5b6472">${fmtHour(h.time)}</text>`;
+      xLabels += `<line x1="${x(i)}" y1="${padT}" x2="${x(i)}" y2="${padT+innerH}" stroke="#232a34" stroke-width="1" stroke-dasharray="2,3"/>`;
+    }
+  });
+
+  let yLabels = '';
+  for(let i=0;i<=4;i++){
+    const val = Math.round(yMax - (i/4)*(yMax-yMin));
+    const yy = padT + (innerH/4)*i;
+    yLabels += `<text x="${padL-8}" y="${yy+4}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#5b6472">${val}°</text>`;
+  }
+
+  const rhPath = path(rhs, yRh);
+  const tempPath = path(temps, yTemp);
+
+  // WBGT line: draw one segment per hour-pair, coloured by that segment's risk band
+  let wbgtSegments = '';
+  let wbgtDots = '';
+  for(let i=0;i<hours.length-1;i++){
+    const v1 = wbgts[i], v2 = wbgts[i+1];
+    const seg = riskFor((v1+v2)/2);
+    wbgtSegments += `<line x1="${x(i)}" y1="${yTemp(v1)}" x2="${x(i+1)}" y2="${yTemp(v2)}" stroke="${seg.color}" stroke-width="2.75" stroke-linecap="round"/>`;
+  }
+  wbgts.forEach((v,i)=>{
+    const r = riskFor(v);
+    wbgtDots += `<circle cx="${x(i)}" cy="${yTemp(v)}" r="2.5" fill="${r.color}"/>`;
+  });
+
+  let nowMarker = '';
+  if(typeof nowIndex === 'number' && nowIndex >= 0 && nowIndex <= hours.length-1){
+    const nx = x(nowIndex);
+    nowMarker = `<line x1="${nx}" y1="${padT}" x2="${nx}" y2="${padT+innerH}" stroke="#eef1f5" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+                 <text x="${nx}" y="${padT-4}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#eef1f5">NOW</text>`;
+  }
+
+  svg.innerHTML = `
+    ${bandRects}
+    ${gridLines}
+    ${xLabels}
+    <path d="${rhPath}" fill="none" stroke="#5b6472" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.8"/>
+    <path d="${tempPath}" fill="none" stroke="#5b8ff2" stroke-width="2"/>
+    ${wbgtSegments}
+    ${wbgtDots}
+    ${yLabels}
+    ${nowMarker}
+  `;
+}
+
+function drawDailyChart(days){
+  const svg = document.getElementById('dailyChart');
+  const W = 960, H = 240, padL = 42, padR = 42, padT = 16, padB = 34;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const vals = days.map(d=>d.peakWbgt);
+  const yMin = 10;
+  const yMax = Math.max(35, Math.ceil(Math.max(...vals) + 2));
+
+  const bandBounds = [
+    { from: -Infinity, to: 18,  color: '#4fd1ae' },
+    { from: 18,         to: 23, color: '#f2c14e' },
+    { from: 23,         to: 28, color: '#f2884b' },
+    { from: 28,         to: 30, color: '#e8563f' },
+    { from: 30,         to: Infinity, color: '#c0392b' },
+  ];
+  const yVal = (v) => padT + innerH - ((v-yMin)/(yMax-yMin))*innerH;
+  const clampY = (v) => Math.max(padT, Math.min(padT+innerH, v));
+
+  let bandRects = '';
+  bandBounds.forEach(b=>{
+    const top = clampY(yVal(Math.min(b.to, yMax)));
+    const bottom = clampY(yVal(Math.max(b.from, yMin)));
+    if(bottom - top > 0.5){
+      bandRects += `<rect x="${padL}" y="${top}" width="${innerW}" height="${bottom-top}" fill="${b.color}" opacity="0.07"/>`;
+    }
+  });
+
+  let gridLines = '';
+  for(let i=0;i<=4;i++){
+    const yy = padT + (innerH/4)*i;
+    const val = Math.round(yMax - (i/4)*(yMax-yMin));
+    gridLines += `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#232a34" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-8}" y="${yy+4}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="#5b6472">${val}°</text>`;
+  }
+
+  const n = days.length;
+  const slot = innerW / n;
+  const barW = Math.min(64, slot*0.5);
+
+  let bars = '';
+  days.forEach((d,i)=>{
+    const cx = padL + slot*i + slot/2;
+    const r = riskFor(d.peakWbgt);
+    const top = yVal(d.peakWbgt);
+    const base = padT + innerH;
+    const clickable = !d.isToday;
+    const groupAttrs = clickable
+      ? `class="day-col" onclick="openDayModal('${d.dateKey}')" tabindex="0" role="button" aria-label="View hourly forecast for ${d.dayLabel} ${d.dateLabel}"`
+      : `class="day-col" style="cursor:default"`;
+    bars += `<g ${groupAttrs}>`;
+    // full-height invisible hit area so the whole column is clickable, not just the bar
+    bars += `<rect x="${padL + slot*i}" y="${padT}" width="${slot}" height="${innerH}" fill="transparent"/>`;
+    bars += `<rect x="${cx-barW/2}" y="${top}" width="${barW}" height="${base-top}" rx="4" fill="${r.color}" opacity="0.85"/>`;
+    bars += `<text x="${cx}" y="${top-8}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="${r.color}">${d.peakWbgt.toFixed(1)}°</text>`;
+    bars += `<text x="${cx}" y="${H-16}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#eef1f5">${d.dayLabel}</text>`;
+    bars += `<text x="${cx}" y="${H-4}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#5b6472">${d.dateLabel}</text>`;
+    if(clickable){
+      bars += `<text class="day-hint" x="${cx}" y="${padT+12}">view hourly →</text>`;
+    }
+    bars += `</g>`;
+  });
+
+  svg.innerHTML = `${bandRects}${gridLines}${bars}`;
+}
+
+function render(current, next4, todayHours, nowIndexInDay, dailyPeaks){
+  document.getElementById('locName').textContent = LOCLABEL;
+  document.getElementById('updatedAt').textContent = 'Updated ' + new Date().toLocaleString([], {hour:'numeric', minute:'2-digit', month:'short', day:'numeric'});
+
+  const risk = riskFor(current.wbgtSun);
+  drawGauge(current.wbgtSun);
+  document.getElementById('gaugeRisk').textContent = risk.label;
+  document.getElementById('gaugeRisk').style.color = risk.color;
+
+  document.getElementById('statTemp').textContent = current.temp.toFixed(1);
+  document.getElementById('statRH').textContent = Math.round(current.rh) + '%';
+  document.getElementById('statUV').textContent = current.uv.toFixed(1);
+  document.getElementById('statCloud').textContent = Math.round(current.cloud) + '%';
+
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '';
+  next4.forEach(h=>{
+    const r = riskFor(h.wbgtSun);
+    const el = document.createElement('div');
+    el.className = 'hcard';
+    el.innerHTML = `
+      <div class="t">${fmtHour(h.time)}</div>
+      <div class="wbgt" style="color:${r.color}">${h.wbgtSun.toFixed(1)}°</div>
+      <div class="chip" style="background:${r.color}22;color:${r.color};border:1px solid ${r.color}66">${r.label}</div>
+      <div class="sub">${h.temp.toFixed(0)}°C · ${Math.round(h.rh)}%RH</div>
+    `;
+    timeline.appendChild(el);
+  });
+
+  drawChart(todayHours, nowIndexInDay);
+  const dayWorst = todayHours.reduce((a,b)=> b.wbgtSun > a.wbgtSun ? b : a);
+  const dayWorstRisk = riskFor(dayWorst.wbgtSun);
+  document.getElementById('chartPeak').innerHTML =
+    `Today's peak: <span style="color:${dayWorstRisk.color}">${dayWorstRisk.label}</span> · ${dayWorst.wbgtSun.toFixed(1)}°C around ${fmtHour(dayWorst.time)}`;
+
+  drawDailyChart(dailyPeaks);
+
+  // advice: based on worst risk in the next-4-hour window
+  const worst = next4.reduce((a,b)=> b.wbgtSun > a.wbgtSun ? b : a);
+  const worstRisk = riskFor(worst.wbgtSun);
+  document.getElementById('advice').style.borderLeftColor = worstRisk.color;
+  document.getElementById('adviceWindow').textContent =
+    `PEAK IN WINDOW · ${fmtHour(worst.time)} · WBGT ${worst.wbgtSun.toFixed(1)}°C`;
+  document.getElementById('adviceHeadline').textContent = `${worstRisk.label} heat stress risk over the next 4 hours`;
+  document.getElementById('adviceHeadline').style.color = worstRisk.color;
+  document.getElementById('adviceBody').textContent = ADVICE_COPY[worstRisk.label];
+}
+
+async function loadAndRender(){
+  const status = document.getElementById('status');
+  const content = document.getElementById('content');
+  status.style.display = 'block';
+  status.className = 'status';
+  status.textContent = 'Reading live conditions…';
+  content.style.display = 'none';
+
+  try{
+    const data = await fetchWeather(LAT, LON);
+    const times = data.hourly.time;
+
+    // Open-Meteo's hourly array starts at local midnight of the request day,
+    // so the first 24 entries are exactly "today, midnight to midnight".
+    const allHours = times.map((t,i)=>{
+      const temp = data.hourly.temperature_2m[i];
+      const rh = data.hourly.relative_humidity_2m[i];
+      const uv = data.hourly.uv_index[i];
+      const cloud = data.hourly.cloud_cover[i];
+      return {
+        time: t, temp, rh, uv, cloud,
+        wbgtShade: wbgtShade(temp, rh),
+        wbgtSun: wbgtSun(temp, rh, uv, cloud),
+      };
+    });
+
+    const todayHours = allHours.slice(0, 24);
+
+    const now = new Date();
+    let nowIdxGlobal = allHours.findIndex(h => new Date(h.time) >= now);
+    if(nowIdxGlobal === -1) nowIdxGlobal = 0;
+    const current = allHours[nowIdxGlobal];
+    const next4 = allHours.slice(nowIdxGlobal, nowIdxGlobal + 4);
+    const nowIndexInDay = Math.min(nowIdxGlobal, 23);
+
+    // group into calendar days for the 5-day outlook, using each day's hottest hour
+    const dayMap = new Map();
+    allHours.forEach(h=>{
+      const dateKey = h.time.slice(0,10);
+      if(!dayMap.has(dateKey)) dayMap.set(dateKey, []);
+      dayMap.get(dateKey).push(h);
+    });
+    TODAY_KEY = todayHours[0].time.slice(0,10);
+    DAY_MAP = dayMap; // cached so day-bar clicks can pull hourly data without refetching
+
+    const dailyPeaks = Array.from(dayMap.entries()).slice(0,5).map(([dateKey, hrs])=>{
+      const peak = hrs.reduce((a,b)=> b.wbgtSun > a.wbgtSun ? b : a);
+      const d = new Date(dateKey + 'T12:00:00');
+      const isToday = dateKey === TODAY_KEY;
+      return {
+        dateKey,
+        isToday,
+        peakWbgt: peak.wbgtSun,
+        peakHour: peak.time,
+        dayLabel: isToday ? 'Today' : d.toLocaleDateString([], {weekday:'short'}),
+        dateLabel: d.toLocaleDateString([], {day:'numeric', month:'short'}),
+      };
+    });
+
+    render(current, next4, todayHours, nowIndexInDay, dailyPeaks);
+    status.style.display = 'none';
+    content.style.display = 'block';
+  }catch(err){
+    status.className = 'status err';
+    status.textContent = 'Could not load weather data: ' + err.message;
+  }
+}
+
+document.getElementById('geoBtn').addEventListener('click', ()=> useCurrentLocation(false));
+
+document.getElementById('locForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const val = document.getElementById('locInput').value.trim();
+  if(!val) return;
+  const status = document.getElementById('status');
+  const content = document.getElementById('content');
+  status.style.display = 'block';
+  status.className = 'status';
+  status.textContent = 'Locating ' + val + '…';
+  content.style.display = 'none';
+  try{
+    const g = await geocode(val);
+    LAT = g.lat; LON = g.lon; LOCLABEL = g.label;
+    document.getElementById('locInput').value = '';
+    loadAndRender();
+  }catch(err){
+    status.className = 'status err';
+    status.textContent = err.message;
+  }
+});
+
+useCurrentLocation(true);
+</script>
+</body>
+</html>
