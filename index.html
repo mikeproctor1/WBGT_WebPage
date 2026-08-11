@@ -65,9 +65,9 @@
 
   /* chart */
   .chart-panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:12px;}
-  .legend{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);margin-bottom:10px;flex-wrap:wrap;}
-  .legend span{display:inline-flex;align-items:center;gap:6px;}
-  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .legend{display:flex;gap:clamp(6px,1.6vw,18px);font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,2.1vw,11px);color:var(--text2);margin-bottom:10px;flex-wrap:wrap;row-gap:6px;}
+  .legend span{display:inline-flex;align-items:center;gap:clamp(3px,0.8vw,6px);white-space:nowrap;}
+  .dot{width:clamp(6px,1.4vw,8px);height:clamp(6px,1.4vw,8px);border-radius:50%;display:inline-block;flex-shrink:0;}
 
   /* advice */
   .advice{margin-top:12px;background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--high);border-radius:10px;padding:18px 20px;}
@@ -169,7 +169,7 @@
       <div class="legend">
         <span><span class="dot" style="background:#5b8ff2"></span>Air temp °C</span>
         <span><span class="dot" style="background:#5b6472"></span>Relative humidity %</span>
-        <span style="margin-left:auto;">WBGT line, coloured by risk band:</span>
+        <span style="color:#5b6472">WBGT line, coloured by risk band:</span>
         <span class="band-key" data-tooltip="Low heat stress (below 18°C WBGT). Normal outdoor activity, exercise and exertion are safe for most people."><span class="dot" style="background:#4fd1ae"></span>Low</span>
         <span class="band-key" data-tooltip="Moderate heat stress (18–23°C WBGT). Fine for most activity — hydrate regularly, especially if unacclimatised to heat."><span class="dot" style="background:#f2c14e"></span>Moderate</span>
         <span class="band-key" data-tooltip="High heat stress (23–28°C WBGT). Increase rest breaks, seek shade, and hydrate every 15–20 minutes."><span class="dot" style="background:#f2884b"></span>High</span>
