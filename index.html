@@ -6,6 +6,7 @@
 <title>WBGT Instrument</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#10141a;
@@ -140,6 +141,7 @@
       <button type="button" id="geoBtn" title="Use current location">📍 Current</button>
       <input type="text" id="locInput" placeholder="Or type a location…" autocomplete="off">
       <button type="submit">Update</button>
+      <button type="button" id="pdfBtn" title="Download a PDF report">⬇ PDF Report</button>
     </form>
   </div>
 
@@ -248,9 +250,19 @@ const ADVICE_COPY = {
   'Extreme':   "Postpone strenuous outdoor activity. Limit exposure to short, light tasks with generous shade and hydration breaks.",
 };
 
+// Single source of truth for the band legend shown both in on-screen tooltips and the PDF report.
+const BAND_INFO = [
+  { label: 'Low',       color: '#4fd1ae', range: 'below 18°C',   desc: ADVICE_COPY['Low'] },
+  { label: 'Moderate',  color: '#f2c14e', range: '18–23°C',      desc: ADVICE_COPY['Moderate'] },
+  { label: 'High',      color: '#f2884b', range: '23–28°C',      desc: ADVICE_COPY['High'] },
+  { label: 'Very High', color: '#e8563f', range: '28–30°C',      desc: ADVICE_COPY['Very High'] },
+  { label: 'Extreme',   color: '#c0392b', range: 'above 30°C',   desc: ADVICE_COPY['Extreme'] },
+];
+
 let LAT = 52.0406, LON = -0.7594, LOCLABEL = 'Milton Keynes, GB'; // fallback until geolocation resolves
 let DAY_MAP = new Map();   // dateKey -> hourly readings, cached from the last successful load
 let TODAY_KEY = null;
+let LAST_STATE = null;     // most recent rendered data, used by the PDF export
 
 function openDayModal(dateKey){
   const hrs = DAY_MAP.get(dateKey);
@@ -607,6 +619,9 @@ function drawDailyChart(days){
 }
 
 function render(current, next4, todayHours, nowIndexInDay, dailyPeaks){
+  LAST_STATE = { current, next4, todayHours, nowIndexInDay, dailyPeaks, loc: LOCLABEL, lat: LAT, lon: LON };
+
+
   document.getElementById('locName').textContent = LOCLABEL;
   document.getElementById('updatedAt').textContent = 'Updated ' + new Date().toLocaleString([], {hour:'numeric', minute:'2-digit', month:'short', day:'numeric'});
 
@@ -744,6 +759,272 @@ document.getElementById('locForm').addEventListener('submit', async (e)=>{
     status.textContent = err.message;
   }
 });
+
+// ---------------------------------------------------------------------------
+// PDF report generation
+// ---------------------------------------------------------------------------
+
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+}
+
+// Rasterise an on-screen SVG chart to a PNG data URL so it can be embedded in the PDF.
+function svgToPngDataUrl(svgEl, bgHex){
+  return new Promise((resolve, reject)=>{
+    const vb = svgEl.viewBox.baseVal;
+    const w = (vb && vb.width) || 960;
+    const h = (vb && vb.height) || 280;
+    const scale = 2; // render at 2x for crisp print output
+    const clone = svgEl.cloneNode(true);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    const xml = new XMLSerializer().serializeToString(clone);
+    const svg64 = btoa(unescape(encodeURIComponent(xml)));
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w*scale; canvas.height = h*scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = bgHex || '#171d26';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.scale(scale,scale);
+      ctx.drawImage(img,0,0,w,h);
+      resolve({ dataUrl: canvas.toDataURL('image/png'), w, h });
+    };
+    img.onerror = reject;
+    img.src = 'data:image/svg+xml;base64,' + svg64;
+  });
+}
+
+// Minimal table renderer (no external plugin dependency): draws a header row + striped body rows.
+function drawPdfTable(doc, x, y, colWidths, headers, rows, opts){
+  opts = opts || {};
+  const rowH = opts.rowH || 16;
+  const fontSize = opts.fontSize || 9;
+  const totalW = colWidths.reduce((a,b)=>a+b,0);
+
+  doc.setFontSize(fontSize);
+  doc.setFont('helvetica','bold');
+  doc.setFillColor(30,36,45);
+  doc.rect(x, y, totalW, rowH, 'F');
+  doc.setTextColor(255,255,255);
+  let cx = x;
+  headers.forEach((hdr,i)=>{ doc.text(String(hdr), cx+5, y+rowH-5.5); cx += colWidths[i]; });
+  y += rowH;
+
+  doc.setFont('helvetica','normal');
+  rows.forEach((row,ri)=>{
+    if(ri % 2 === 1){
+      doc.setFillColor(242,244,247);
+      doc.rect(x, y, totalW, rowH, 'F');
+    }
+    let cx2 = x;
+    row.forEach((cell,ci)=>{
+      const isObj = cell && typeof cell === 'object';
+      const text = isObj ? cell.text : String(cell);
+      const color = isObj && cell.color ? cell.color : [40,44,50];
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(text, cx2+5, y+rowH-5.5);
+      cx2 += colWidths[ci];
+    });
+    y += rowH;
+  });
+  return y + 6;
+}
+
+// Draws the WBGT risk-band legend: a colour swatch, band name + range, and its guidance text.
+function drawBandLegend(doc, x, y, w){
+  const margin = 40;
+  const pageH = doc.internal.pageSize.getHeight();
+  const swatch = 12;
+  const indent = swatch + 10;
+
+  BAND_INFO.forEach(b=>{
+    if(y > pageH - margin - 40){ doc.addPage(); y = margin; }
+    const rgb = hexToRgb(b.color);
+
+    doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+    doc.rect(x, y - 9, swatch, swatch, 'F');
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+    doc.text(`${b.label} (${b.range})`, x + indent, y);
+    y += 12;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    doc.setTextColor(70,76,86);
+    const lines = doc.splitTextToSize(b.desc, w - indent);
+    lines.forEach(line=>{
+      if(y > pageH - margin){ doc.addPage(); y = margin; }
+      doc.text(line, x + indent, y);
+      y += 10.5;
+    });
+    y += 5;
+  });
+  return y;
+}
+
+function buildSummaryParagraphs(state){
+  const { current, todayHours, dailyPeaks, loc } = state;
+  const currentRisk = riskFor(current.wbgtSun);
+
+  const dayWorst = todayHours.reduce((a,b)=> b.wbgtSun > a.wbgtSun ? b : a);
+  const dayBest = todayHours.reduce((a,b)=> b.wbgtSun < a.wbgtSun ? b : a);
+  const dayWorstRisk = riskFor(dayWorst.wbgtSun);
+
+  const futureDays = dailyPeaks.filter(d=>!d.isToday);
+  const worstDay = dailyPeaks.reduce((a,b)=> b.peakWbgt > a.peakWbgt ? b : a);
+  const worstDayRisk = riskFor(worstDay.peakWbgt);
+  const mildestFuture = futureDays.length
+    ? futureDays.reduce((a,b)=> b.peakWbgt < a.peakWbgt ? b : a)
+    : null;
+
+  const p1 = `Conditions in ${loc} are currently estimated at ${current.wbgtSun.toFixed(1)}°C WBGT `
+    + `(${currentRisk.label} risk), with an air temperature of ${current.temp.toFixed(1)}°C, `
+    + `${Math.round(current.rh)}% relative humidity and a UV index of ${current.uv.toFixed(1)}. `
+    + ADVICE_COPY[currentRisk.label];
+
+  const p2 = `Today's heat stress is expected to peak at ${dayWorst.wbgtSun.toFixed(1)}°C `
+    + `(${dayWorstRisk.label}) around ${fmtHour(dayWorst.time)}, easing to its lowest point of `
+    + `${dayBest.wbgtSun.toFixed(1)}°C around ${fmtHour(dayBest.time)}. Plan the most demanding `
+    + `outdoor activity outside the peak window where possible.`;
+
+  let p3 = `Looking across the ${dailyPeaks.length}-day outlook, the highest heat stress is expected on `
+    + `${worstDay.dayLabel} (${worstDay.dateLabel}) with a peak of ${worstDay.peakWbgt.toFixed(1)}°C `
+    + `(${worstDayRisk.label}).`;
+  if(mildestFuture && mildestFuture.dateKey !== worstDay.dateKey){
+    const mildRisk = riskFor(mildestFuture.peakWbgt);
+    p3 += ` The most comfortable day ahead looks to be ${mildestFuture.dayLabel} (${mildestFuture.dateLabel}), `
+      + `peaking at a milder ${mildestFuture.peakWbgt.toFixed(1)}°C (${mildRisk.label}).`;
+  }
+
+  return [p1, p2, p3];
+}
+
+async function generatePdfReport(){
+  if(!LAST_STATE){ return; }
+  const btn = document.getElementById('pdfBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    const contentW = pageW - margin*2;
+    let y = margin;
+
+    const state = LAST_STATE;
+    const { todayHours, dailyPeaks } = state;
+    const generatedAt = new Date();
+
+    // --- Header ---
+    doc.setFont('helvetica','bold'); doc.setFontSize(19);
+    doc.setTextColor(20,24,30);
+    doc.text('WBGT Heat Stress Forecast', margin, y); y += 20;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.setTextColor(90,98,110);
+    doc.text(state.loc, margin, y); y += 14;
+    doc.setFontSize(9);
+    doc.text(`Generated ${generatedAt.toLocaleString([], {dateStyle:'medium', timeStyle:'short'})} · Lat ${state.lat.toFixed(3)}, Lon ${state.lon.toFixed(3)}`, margin, y);
+    y += 14;
+    doc.setDrawColor(210); doc.line(margin, y, pageW-margin, y); y += 20;
+
+    // --- Risk band legend ---
+    doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(20,24,30);
+    doc.text('WBGT Risk Bands', margin, y); y += 14;
+    y = drawBandLegend(doc, margin, y, contentW);
+    y += 6;
+
+    // --- Textual summary ---
+    doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(20,24,30);
+    doc.text('Summary', margin, y); y += 16;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    doc.setTextColor(50,56,66);
+    const paragraphs = buildSummaryParagraphs(state);
+    paragraphs.forEach(p=>{
+      const lines = doc.splitTextToSize(p, contentW);
+      lines.forEach(line=>{
+        if(y > pageH - margin - 14){ doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 13;
+      });
+      y += 6;
+    });
+
+    // --- 24-hour chart (redrawn without the "NOW" marker for a clean printout) ---
+    if(y > pageH - margin - 200){ doc.addPage(); y = margin; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(20,24,30);
+    doc.text("Today's WBGT — Midnight to Midnight", margin, y); y += 12;
+
+    const chartSvg = document.getElementById('chart');
+    drawChart(state.todayHours, -1); // -1 = no NOW marker
+    const chartImg = await svgToPngDataUrl(chartSvg, '#171d26');
+    drawChart(state.todayHours, state.nowIndexInDay); // restore the on-screen marker
+    const chartDrawW = contentW;
+    const chartDrawH = chartDrawW * (chartImg.h / chartImg.w);
+    doc.addImage(chartImg.dataUrl, 'PNG', margin, y, chartDrawW, chartDrawH);
+    y += chartDrawH + 22;
+
+    // --- 5-day outlook chart + table (new page for clarity) ---
+    doc.addPage(); y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(20,24,30);
+    doc.text('5-Day Outlook', margin, y); y += 18;
+
+    const dailySvg = document.getElementById('dailyChart');
+    const dailyImg = await svgToPngDataUrl(dailySvg, '#171d26');
+    const dailyDrawW = contentW;
+    const dailyDrawH = dailyDrawW * (dailyImg.h / dailyImg.w);
+    doc.addImage(dailyImg.dataUrl, 'PNG', margin, y, dailyDrawW, dailyDrawH);
+    y += dailyDrawH + 20;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(20,24,30);
+    doc.text('Daily Peak Summary', margin, y); y += 10;
+
+    const dailyRows = dailyPeaks.map(d=>{
+      const r = riskFor(d.peakWbgt);
+      return [
+        d.isToday ? `${d.dayLabel} (${d.dateLabel})` : `${d.dayLabel} ${d.dateLabel}`,
+        { text: `${d.peakWbgt.toFixed(1)}°C`, color: hexToRgb(r.color) },
+        { text: r.label, color: hexToRgb(r.color) },
+        fmtHour(d.peakHour),
+      ];
+    });
+    y = drawPdfTable(doc, margin, y+4, [160, 80, 100, 100],
+      ['Day', 'Peak WBGT', 'Risk', 'Peak Time'], dailyRows);
+    y += 14;
+
+    // --- Methodology / disclaimer ---
+    if(y > pageH - margin - 70){ doc.addPage(); y = margin; }
+    doc.setDrawColor(210); doc.line(margin, y, pageW-margin, y); y += 14;
+    doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(120,126,136);
+    const disclaimer = 'WBGT is estimated from air temperature, relative humidity, UV index and cloud cover '
+      + '(shade formula 0.567*T + 0.393*e + 3.94, plus a solar loading term for direct sun exposure). This is a '
+      + 'planning estimate, not a black-globe thermometer reading. Risk bands: Low <18C, Moderate 18-23C, '
+      + 'High 23-28C, Very High 28-30C, Extreme >30C. Data source: Open-Meteo. Report generated client-side.';
+    doc.splitTextToSize(disclaimer, contentW).forEach(line=>{
+      if(y > pageH - margin){ doc.addPage(); y = margin; }
+      doc.text(line, margin, y); y += 11;
+    });
+
+    const dateStr = generatedAt.toISOString().slice(0,10);
+    const safeLoc = state.loc.replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'');
+    doc.save(`wbgt-forecast-${safeLoc}-${dateStr}.pdf`);
+  }catch(err){
+    alert('Could not generate the PDF: ' + err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+document.getElementById('pdfBtn').addEventListener('click', generatePdfReport);
 
 useCurrentLocation(true);
 </script>
