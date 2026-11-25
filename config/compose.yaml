@@ -1,0 +1,10 @@
+services:
+   web:
+      image: nginx:1.30.8-trixie
+      volumes:
+      - type: bind
+        source: ../html
+        target: /usr/share/nginx/html
+      ports:
+      - ":80"
+
